@@ -1,25 +1,24 @@
-import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import Extension from "./Extension";
 
 import Discord = require("discord.js");
+import Botty from "./Botty";
 
-export default class Honeypot {
+export default class Honeypot extends Extension {
     private master: Discord.Client;
     private client: Discord.Client;
     private joinTime: number;
-    private sharedSettings: SharedSettings;
-    private personalSettings: PersonalSettings;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
-        this.sharedSettings = sharedSettings;
-        this.personalSettings = personalSettings;
-        console.log("Successfully loaded honeypot settings.");
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
 
         this.joinTime = Date.now();
-        this.master = bot;
+        this.master = botty.client;
         this.client = new Discord.Client();
 
+        /* Events listeners can be added directly to the client since they don't need to
+        be removed when the extension is disabled (because the client will be destroyed) */
         this.client
             .on("message", this.onMessage.bind(this))
             .on("messageUpdate", this.onMessageUpdate.bind(this))
@@ -32,10 +31,14 @@ export default class Honeypot {
             .on("connect", () => console.warn("Honeypot is connected."))
             .on("ready", () => console.log("Honeypot is logged in and ready."));
 
-        this.master.on("ready", () => {
+        this.onClientReady(() => {
             console.log("Honeypot's master is logged in and ready.");
             this.client.login(this.personalSettings.honeypot.token);
         });
+    }
+
+    public disable(): void {
+        this.client.destroy();
     }
 
     onJoin(guild: Discord.Guild) {

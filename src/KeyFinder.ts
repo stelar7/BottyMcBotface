@@ -1,28 +1,25 @@
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import { dataFiles, FoundKeyInfo } from "./DataFiles";
+import Extension from "./Extension";
 
 import Discord = require("discord.js");
 import fetch from "node-fetch";
+import Botty from "./Botty";
 
-export default class KeyFinder {
-    private sharedSettings: SharedSettings;
+export default class KeyFinder extends Extension {
     private keys: FoundKeyInfo[];
-    private bot: Discord.Client;
     private channel?: Discord.TextChannel = undefined;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, keyFile: string) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested KeyFinder extension..");
 
-        this.sharedSettings = sharedSettings;
-        console.log("Successfully loaded KeyFinder settings file.");
-
-        this.keys = fileBackedObject(keyFile);
+        this.keys = fileBackedObject(dataFiles.keyFinder);
         console.log("Successfully loaded KeyFinder key file.");
 
-        this.bot = bot;
-
-        this.bot.on("ready", () => {
+        this.onClientReady(() => {
             const guild = this.bot.guilds.get(this.sharedSettings.server);
 
             if (guild) {
@@ -33,13 +30,17 @@ export default class KeyFinder {
                     console.error(`KeyFinder: Incorrect setting for the channel: ${this.sharedSettings.keyFinder.reportChannel}`);
                 }
             } else {
-                console.error(`KeyFinder: Incorrect setting for the server: ${this.sharedSettings.server }`);
+                console.error(`KeyFinder: Incorrect setting for the server: ${this.sharedSettings.server}`);
             }
 
             console.log("KeyFinder extension loaded.");
             this.testAllKeys();
         });
-        this.bot.on("message", this.onMessage.bind(this));
+        this.addEventListener(this.bot, "message", this.onMessage.bind(this));
+    }
+
+    public disable(): void {
+        this.removeRegisteredEventListeners();
     }
 
     onMessage(incomingMessage: Discord.Message) {
@@ -138,16 +139,4 @@ export default class KeyFinder {
 
         return found;
     }
-}
-
-interface FoundKeyInfo {
-    apiKey: string;
-    /** The person who posted the key. If the key was posted on AnswerHub, this will be their username; if the key was posted in Discord, this will be a string to tag them (e.g. "<@178320409303842817>") */
-    user: string;
-    /** Where the key was posted. If the key was posted on AnswerHub, this will be a link to the post; if the key was posted in Discord, this will be a string to tag the channel (e.g. "<#187652476080488449>") */
-    location: string;
-    /** When the key was posted (in milliseconds since the Unix epoch)*/
-    timestamp: number;
-    /** The key rate limit (in the same form as the "X-App-Rate-Limit" header) */
-    rateLimit: string;
 }

@@ -1,30 +1,37 @@
 import { fileBackedObject } from "./FileBackedObject";
-
+import Extension from "./Extension";
+import { PersonalSettings } from "./PersonalSettings";
+import { SharedSettings } from "./SharedSettings";
+import { dataFiles } from "./DataFiles";
 import Discord = require("discord.js");
+import Botty from "./Botty";
 
-export default class AutoReact {
-    private bot: Discord.Client;
+export default class AutoReact extends Extension {
     private thinkingUsers: string[];
     private greetingEmoji: Discord.Emoji;
 
-    constructor(bot: Discord.Client, userFile: string) {
-        console.log("Requested Thinking extension..");
-        this.bot = bot;
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
+        console.log("Requested AutoReact extension..");
 
-        this.thinkingUsers = fileBackedObject(userFile);
+        this.thinkingUsers = fileBackedObject(dataFiles.autoReact);
         console.log("Successfully loaded original thinking user file.");
 
-        this.bot.on("ready", this.onBot.bind(this));
-        this.bot.on("message", this.onThinking.bind(this));
+        this.onClientReady(this.onBot.bind(this));
+        this.addEventListener(this.bot, "message", this.onThinking.bind(this));
+    }
+
+    public disable(): void {
+        this.removeRegisteredEventListeners();
     }
 
     onBot() {
-        console.log("Thinking extension loaded.");
-        
+        console.log("AutoReact extension loaded.");
+
         let emoji = this.bot.emojis.get("355252071882162176");
         if (emoji instanceof Discord.Emoji) {
             this.greetingEmoji = emoji;
-            this.bot.on("message", this.onGreeting.bind(this));
+            this.addEventListener(this.bot, "message", this.onGreeting.bind(this));
             console.log("Bot has succesfully loaded greetings.");
         }
     }
@@ -59,7 +66,7 @@ export default class AutoReact {
     onGreeting(message: Discord.Message) {
         let greeting = message.content.toLowerCase();
 
-        if (!greeting.startsWith("hello") 
+        if (!greeting.startsWith("hello")
             && !greeting.startsWith("hi ") && greeting != "hi"
             && !greeting.startsWith("hey ") && greeting != "hey")
             return;

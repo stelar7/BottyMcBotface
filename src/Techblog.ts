@@ -1,29 +1,25 @@
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import { dataFiles, TechblogData } from "./DataFiles";
 
+import Extension from "./Extension";
 import Discord = require("discord.js");
 import feedReader = require("feed-read");
+import Botty from "./Botty";
 
-export interface TechblogData {
-    Last: number;
-}
-
-export default class Techblog {
-    private bot: Discord.Client;
-    private sharedSettings: SharedSettings;
+export default class Techblog extends Extension {
     private data: TechblogData;
     private channel: Discord.TextChannel;
+    /** The Timer for when the RSS feed will be parsed next */
+    private updateTimer: NodeJS.Timer;
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, dataFile: string) {
-        this.sharedSettings = sharedSettings;
-
-        this.data = fileBackedObject(dataFile);
+        this.data = fileBackedObject(dataFiles.techBlog);
         console.log("Successfully loaded TechblogReader data file.");
 
-        this.bot = bot;
-
-        this.bot.on("ready", () => {
+        this.onClientReady(() => {
             if (!this.data.Last) this.data.Last = Date.now();
 
             let guild = this.bot.guilds.get(this.sharedSettings.server);
@@ -40,10 +36,15 @@ export default class Techblog {
 
             console.log("TechblogReader extension loaded.");
 
-            setInterval(() => {
+            this.updateTimer = setInterval(() => {
                 this.checkFeed();
             }, this.sharedSettings.techBlog.checkInterval);
         });
+    }
+
+    public disable(): void {
+        this.removeRegisteredEventListeners();
+        clearInterval(this.updateTimer);
     }
 
     checkFeed() {

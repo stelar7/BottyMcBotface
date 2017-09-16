@@ -1,9 +1,12 @@
 import Discord = require("discord.js");
 import prettyMs = require("pretty-ms");
+import Extension from "./Extension";
+import Botty from "./Botty";
 
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import { dataFiles } from "./DataFiles";
 
 export interface UptimeData {
     LastUptime: number;
@@ -11,26 +14,23 @@ export interface UptimeData {
     TotalDowntime: number;
 }
 
-export default class Uptime {
-    private bot: Discord.Client;
-    private sharedSettings: SharedSettings;
-    private personalSettings: PersonalSettings;
+export default class Uptime extends Extension {
     private data: UptimeData;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, personalSettings: PersonalSettings, dataFile: string) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested uptime extension..");
 
-        this.sharedSettings = sharedSettings;
-        this.personalSettings = personalSettings;
-        console.log("Successfully loaded uptime settings.");
-
-        this.data = fileBackedObject(dataFile);
+        this.data = fileBackedObject(dataFiles.uptime);
         console.log("Successfully loaded uptime data file.");
 
-        this.bot = bot;
-        this.bot.on("ready", this.onBot.bind(this));
-        this.bot.on("message", this.onMessage.bind(this));
+        this.onClientReady(this.onBot.bind(this));
+        this.addEventListener(this.bot, "message", this.onMessage.bind(this));
         setInterval(this.onUpdate.bind(this), this.sharedSettings.uptimeSettings.checkInterval);
+    }
+
+    public disable(): void {
+        this.removeRegisteredEventListeners();
     }
 
     onBot() {

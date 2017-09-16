@@ -4,33 +4,34 @@ import fetch from "node-fetch";
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import Botty from "./Botty";
+import { dataFiles } from "./DataFiles";
+import Extension from "./Extension";
 
 export interface VersionCheckerData {
     latestGameVersion: string;
     latestDataDragonVersion: string;
-};
+}
 
-export default class VersionChecker {
-    private bot: Discord.Client;
-    private sharedSettings: SharedSettings;
+export default class VersionChecker extends Extension {
     private data: VersionCheckerData;
     private channel: Discord.TextChannel;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, dataFile: string) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested VersionChecker extension..");
 
-        this.sharedSettings = sharedSettings;
-        console.log("Successfully loaded VersionChecker settings.");
-
-        this.data = fileBackedObject(dataFile);
+        this.data = fileBackedObject(dataFiles.versionChecker);
         console.log("Successfully loaded VersionChecker data file.");
 
-        this.bot = bot;
-        this.bot.on("ready", this.onBot.bind(this));
+        this.onClientReady(this.onBot.bind(this));
+    }
+
+    public disable():void {
+        this.removeRegisteredEventListeners();
     }
 
     onBot() {
-
         let guild = this.bot.guilds.get(this.sharedSettings.server);
         if (!guild) {
             console.error(`VersionChecker: Incorrect settings for guild ID ${this.sharedSettings.server}`);
@@ -49,7 +50,7 @@ export default class VersionChecker {
     }
 
     async updateDataDragonVersion() {
-        try { 
+        try {
             const response = await fetch(`http://ddragon.leagueoflegends.com/realms/na.json`, {
                 method: "GET",
                 headers: {
@@ -79,26 +80,27 @@ export default class VersionChecker {
             let embed = new Discord.RichEmbed()
                 .setColor(0x42f456)
                 .setTitle("New DDragon version!")
-                .setDescription(`Version ${this.data.latestDataDragonVersion} of DDragon has hit the CDN.\nYou can find the tool here:\nhttp://ddragon.leagueoflegends.com/tool\n\nAnd the download is available here:\n${downloadLink}`)
+                .setDescription(
+                    `Version ${this.data
+                        .latestDataDragonVersion} of DDragon has hit the CDN.\nYou can find the tool here:\nhttp://ddragon.leagueoflegends.com/tool\n\nAnd the download is available here:\n${downloadLink}`
+                )
                 .setURL("http://ddragon.leagueoflegends.com/tool")
                 .setThumbnail(this.sharedSettings.versionChecker.dataDragonThumbnail);
-            
+
             this.channel.send("", {
                 embed: embed
             });
-        }
-        catch (e) {
+        } catch (e) {
             console.error("Ddragon fetch error: " + e.message);
         }
     }
 
     async updateGameVersion() {
-        
-        try { 
+        try {
             let currentVersionArray = this.data.latestGameVersion.split(".");
             let nextMajor: number = parseInt(currentVersionArray[0]);
             let nextMinor: number = parseInt(currentVersionArray[1]);
-            
+
             let tries = 0;
 
             let patchNotes: string;
@@ -122,10 +124,8 @@ export default class VersionChecker {
                     lastNewValidMinor = nextMinor;
                     validPatchNotes = patchNotes;
                     newPatch = true;
-                }
-                
-                // check for change in season
-                else if (response.status === 404) {
+                } else if (response.status === 404) {
+                    // check for change in season
                     nextMajor++;
                     nextMinor = 1;
 
@@ -141,11 +141,9 @@ export default class VersionChecker {
                         lastNewValidMinor = nextMinor;
                         validPatchNotes = patchNotes;
                         newPatch = true;
-                    }
-                    else if (response.status === 404) break;
-                } 
-            } 
-            while (tries < 100);
+                    } else if (response.status === 404) break;
+                }
+            } while (tries < 100);
 
             if (newPatch == false) return; // no new version
 
@@ -154,15 +152,17 @@ export default class VersionChecker {
             let embed = new Discord.RichEmbed()
                 .setColor(0xf442e5)
                 .setTitle("New League of Legends version!")
-                .setDescription(`Version ${this.data.latestGameVersion} of League of Legends has posted its patch notes. You can expect the game to update soon.\n\nYou can find the notes here:\n${validPatchNotes}`)
+                .setDescription(
+                    `Version ${this.data
+                        .latestGameVersion} of League of Legends has posted its patch notes. You can expect the game to update soon.\n\nYou can find the notes here:\n${validPatchNotes}`
+                )
                 .setURL(validPatchNotes)
                 .setThumbnail(this.sharedSettings.versionChecker.gameThumbnail);
-            
+
             this.channel.send("", {
                 embed: embed
             });
-        }
-        catch (e) {
+        } catch (e) {
             console.error("Game version fetch error: " + e.message);
         }
     }

@@ -16,18 +16,18 @@ import { PersonalSettings } from "./PersonalSettings";
 // Load and initialise settings
 const sharedSettings = fileBackedObject<SharedSettings>("settings/shared_settings.json");
 const personalSettings = fileBackedObject<PersonalSettings>("settings/personal_settings.json");
-const bot = new Botty(personalSettings);
+const bot = new Botty(sharedSettings, personalSettings);
 
-// Load extensions
-const uptime = new Uptime(bot.client, sharedSettings, personalSettings, "data/uptime_data.json");
-const keyFinder = new KeyFinder(bot.client, sharedSettings, "data/riot_keys.json");
-const forum = new ForumReader(bot.client, sharedSettings, personalSettings, "data/forum_data.json", keyFinder);
-//const honeypot = new Honeypot(bot.client, sharedSettings, personalSettings);
-const autoReact = new AutoReact(bot.client, "data/thinking_data.json");
-const techblog = new Techblog(bot.client, sharedSettings, "data/techblog_data.json");
-const channelAccess = new ChannelAccess(bot.client, sharedSettings);
-const info = new Info(bot.client, sharedSettings, "data/info_data.json");
-const versionChecker = new VersionChecker(bot.client, sharedSettings, "data/version_data.json");
+// Register and enable extensions
+bot.registerExtension("Uptime", Uptime, true);
+bot.registerExtension("KeyFinder", KeyFinder, true);
+bot.registerExtension("ForumReader", ForumReader, true);
+bot.registerExtension("AutoReact", AutoReact, true);
+bot.registerExtension("Honeypot", Honeypot, true);
+bot.registerExtension("Techblog", Techblog, true);
+bot.registerExtension("ChannelAccess", ChannelAccess, false);
+bot.registerExtension("Info", Info, true);
+bot.registerExtension("VersionChecker", VersionChecker, true);
 
 // start bot
 bot.start();

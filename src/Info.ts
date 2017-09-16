@@ -2,6 +2,10 @@ import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 
 import Discord = require("discord.js");
+import { PersonalSettings } from "./PersonalSettings";
+import Botty from "./Botty";
+import Extension from "./Extension";
+import { dataFiles } from "./DataFiles";
 
 // If the Collection contains anything in the other array
 const findOne = (arr1: Discord.Collection<string, Discord.Role>, arr2: Array<any>) => {
@@ -15,24 +19,24 @@ export interface InfoData {
     message: string;
 }
 
-export default class Info {
-    private bot: Discord.Client;
+export default class Info extends Extension {
     private infos: InfoData[];
-    private sharedSettings: SharedSettings;
     private command: string;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, userFile: string) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested Info extension..");
-        this.bot = bot;
         this.command = sharedSettings.info.command;
 
-        this.infos = fileBackedObject(userFile);
+        this.infos = fileBackedObject(dataFiles.info);
         console.log("Successfully loaded info file.");
 
-        this.sharedSettings = sharedSettings;
+        this.onClientReady(this.onBot.bind(this));
+        this.addEventListener(this.bot, "message", this.onInfo.bind(this));
+    }
 
-        this.bot.on("ready", this.onBot.bind(this));
-        this.bot.on("message", this.onInfo.bind(this));
+    public disable(): void {
+        this.removeRegisteredEventListeners();
     }
 
     onBot() {
@@ -44,28 +48,27 @@ export default class Info {
 
         // Needs to start with / or !
         const split = message.cleanContent.split(" ");
-        if (split[0][0] !== '!' && split[0][0] !== '/') return;
-            
+        if (split[0][0] !== "!" && split[0][0] !== "/") return;
+
         // needs to start with command
         let command = split[0].substr(1);
         if (!command.startsWith(this.command)) return;
 
         // !info <command>
-        let nextIndex = 1;    
+        let nextIndex = 1;
         if (command.length === this.command.length) {
             command = split[1];
             nextIndex++;
-        }
-
-        // !info<command>
-        else command = command.substr(this.command.length);
+        } else
+            // !info<command>
+            command = command.substr(this.command.length);
 
         let response: string | undefined;
         switch (command) {
             case "add":
                 // Only admins
                 if (!message.member || !findOne(message.member.roles, this.sharedSettings.info.allowedRoles)) return;
-                
+
                 if (split.length <= nextIndex + 1) return;
                 response = this.addInfo(split[nextIndex], split.slice(nextIndex + 1).join(" "));
                 break;
@@ -73,7 +76,7 @@ export default class Info {
             case "remove":
                 // Only admins
                 if (!message.member || !findOne(message.member.roles, this.sharedSettings.info.allowedRoles)) return;
-                
+
                 if (split.length <= nextIndex) return;
                 response = this.removeInfo(split[nextIndex]);
                 break;
@@ -82,7 +85,8 @@ export default class Info {
                 response = this.listInfo();
                 break;
 
-            default: // Retrieve or just !info
+            default:
+                // Retrieve or just !info
                 if (split.length <= 1) return;
                 response = this.fetchInfo(split[1]);
                 break;

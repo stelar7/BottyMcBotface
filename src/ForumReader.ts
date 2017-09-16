@@ -1,21 +1,15 @@
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import { dataFiles, ForumReaderData } from "./DataFiles";
 
 import { default as AnswerHubAPI, Node, NodeList, Question } from "./AnswerHub";
 import KeyFinder from "./KeyFinder";
 import Discord = require("discord.js");
+import Extension from "./Extension";
+import Botty from "./Botty";
 
-
-export interface ForumReaderData {
-    Last: {
-        question: number;
-        answer: number;
-        comment: number;
-    };
-}
-
-export default class ForumReader {
+export default class ForumReader extends Extension {
     /** How many attempts should be made to process each activity before giving up on it */
     private static MAX_ATTEMPTS = 3;
 
@@ -23,32 +17,26 @@ export default class ForumReader {
     private cachedNodes: Map<number, Question> = new Map();
     /** Activities that could not be successfully parsed and will be retried */
     private erroredActivities: { activity: Node; /** How many attempts have been made to process this activity */ attempts: number }[] = [];
-    private keyFinder: KeyFinder;
-    private sharedSettings: SharedSettings;
-    private personalSettings: PersonalSettings;
     private data: ForumReaderData;
     private channel: Discord.TextChannel;
+    /** The Timer for when the forum will be parsed next */
+    private updateTimer: NodeJS.Timer;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings, personalSettings: PersonalSettings, dataFile: string, keyFinder: KeyFinder) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested ForumReader extension..");
 
-        this.sharedSettings = sharedSettings;
-        this.personalSettings = personalSettings;
-        console.log("Successfully loaded ForumReader settings.");
-
-        this.data = fileBackedObject(dataFile);
+        this.data = fileBackedObject(dataFiles.forum);
         console.log("Successfully loaded ForumReader data file.");
-
-        this.keyFinder = keyFinder;
         this.answerHub = new AnswerHubAPI(this.sharedSettings.forum.url, this.personalSettings.forum.username, this.personalSettings.forum.password);
         this.cachedNodes = new Map();
 
         if (this.data.Last.question === 0) this.data.Last.question = Date.now();
         if (this.data.Last.answer === 0) this.data.Last.answer = Date.now();
         if (this.data.Last.comment === 0) this.data.Last.comment = Date.now();
-
-        bot.on("ready", () => {
-            let guild = bot.guilds.get(this.sharedSettings.server);
+        
+        this.onClientReady(() => {
+            let guild = this.bot.guilds.get(this.sharedSettings.server);
             if (!guild) {
                 console.error(`ForumReader: Incorrect settings for guild ID ${this.sharedSettings.server}`);
                 return;
@@ -63,6 +51,11 @@ export default class ForumReader {
 
             this.fetchForumData();
         });
+    }
+
+    public disable(): void {
+        this.removeRegisteredEventListeners();
+        clearTimeout(this.updateTimer);
     }
 
     /**
@@ -101,8 +94,8 @@ export default class ForumReader {
                     .setTitle(`${activity.author.username} asked "${activity.title}"`)
                     .setDescription(this.answerHub.formatQuestionBody(activity.body))
                     .setURL(`${this.answerHub.baseURL}questions/${activity.id}/${activity.slug}.html`);
-
-                this.keyFinder.findKey(username, activity.title, <string>embed.url, activity.creationDate);
+                const keyFinder = <KeyFinder>this.botty.getExtension(KeyFinder);
+                if (keyFinder) keyFinder.findKey(username, activity.title, <string>embed.url, activity.creationDate);
                 break;
             }
 
@@ -133,8 +126,8 @@ export default class ForumReader {
                 console.error(`Unknown activity type: ${activity.type}`);
         }
         if (!embed) return;
-
-        this.keyFinder.findKey(username, activity.body, <string>embed.url, activity.creationDate);
+        const keyFinder = <KeyFinder>this.botty.getExtension(KeyFinder);
+        if (keyFinder) keyFinder.findKey(username, activity.body, <string>embed.url, activity.creationDate);
         embed.setTimestamp(new Date(activity.creationDate)).setThumbnail(avatar);
 
         await this.channel.send("", {
@@ -203,6 +196,6 @@ export default class ForumReader {
         await this.readActivities(this.answerHub.getAnswers());
         await this.readActivities(this.answerHub.getComments());
         await this.retryErroredActivities();
-        setTimeout(() => this.fetchForumData(), this.sharedSettings.forum.checkInterval);
+        this.updateTimer = setTimeout(() => this.fetchForumData(), this.sharedSettings.forum.checkInterval);
     }
 }

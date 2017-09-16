@@ -1,22 +1,23 @@
 import { fileBackedObject } from "./FileBackedObject";
 import { SharedSettings } from "./SharedSettings";
 import { PersonalSettings } from "./PersonalSettings";
+import Extension from "./Extension";
+import Botty from "./Botty";
 
 import Discord = require("discord.js");
 
-export default class ChannelAccess {
-    private sharedSettings: SharedSettings;
-    private bot: Discord.Client;
+export default class ChannelAccess extends Extension {
     private guild: Discord.Guild;
 
-    constructor(bot: Discord.Client, sharedSettings: SharedSettings) {
+    constructor(botty: Botty, sharedSettings: SharedSettings, personalSettings: PersonalSettings) {
+        super(botty, sharedSettings, personalSettings);
         console.log("Requested ChannelAccess extension..");
+        
+        this.onClientReady(() => this.onBotReady());
+    }
 
-        this.sharedSettings = sharedSettings;
-        console.log("Successfully loaded ChannelAccess settings file.");
-
-        this.bot = bot;
-        this.bot.on("ready", () => this.onBotReady());
+    public disable(): void {
+        this.removeRegisteredEventListeners();
     }
 
     private onBotReady(): void {
@@ -27,7 +28,7 @@ export default class ChannelAccess {
         }
         this.guild = guild;
 
-        this.bot.on("message", message => this.processMessage(message));
+        this.addEventListener(this.bot, "message", message => this.processMessage(message));
     }
 
     private processMessage(message: Discord.Message) {
