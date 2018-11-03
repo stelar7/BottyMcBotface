@@ -24,8 +24,8 @@ export default class ESportsAPI {
     private esportsChannel: Discord.GuildChannel | null = null;
 
     private schedule: Map<string, Map<string, ESportsLeagueSchedule[]>> = new Map();
-    private postInfoTimeOut: number | null;
-    private loadDataTimeOut: number | null;
+    private postInfoTimeOut: NodeJS.Timer | null;
+    private loadDataTimeOut: NodeJS.Timer | null;
 
     constructor(bot: Discord.Client, settings: SharedSettings) {
         this.bot = bot;
